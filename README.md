@@ -50,11 +50,11 @@ Specify any prerequisites needed before installing your project:
 ### **Dataset preparation** 
 
 **ClassificationModule**
-* In this folder, [Input](https://github.com/XZH-James/NeuronMapper/tree/main/ClassificationModule-main/input) stores the sub block(512*512*512) maximum intensity projection images.  
+* In this folder, [Input](https://github.com/XZH-James/NeuronMapper/tree/main/ClassificationModule-main/input) stores the sub block(512×512×512) maximum intensity projection images.  
 * [make_dataset.py](https://github.com/XZH-James/NeuronMapper/blob/main/ClassificationModule-main/input/make_dataset.py) is used to randomly create data sets for classification network training/validation/testing.  
 
 **SegmentModule**
-* In this folder, [dataset](https://github.com/XZH-James/NeuronMapper/tree/main/SegmentModule-main/dataset) stores the sub block(512*512*512) images for training/validation/testing. 
+* In this folder, [dataset](https://github.com/XZH-James/NeuronMapper/tree/main/SegmentModule-main/dataset) stores the sub block(512×512×512) images for training/validation/testing. 
 
 ### **training or testing** 
 
@@ -91,7 +91,7 @@ Before installing the environment, install CUDA and Cudnn compatible with the gr
 Classification network: *_*_*-GT.tif   Such as 5_10_2-1.tif  means whole brain coordinates X:5 Y:10 Z:2 contain projected images of neurons.
 0_9_3-0.tif means whole brain coordinates X:0 Y:9 Z:3 do not contain projected images of neurons.
 
-Segmentation network: image -   volume-1.tif  label - label-1.tif
+Segmentation network: image -   volume-1.tif        label - label-1.tif
 
 ## Contact
 
