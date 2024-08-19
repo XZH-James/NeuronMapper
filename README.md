@@ -88,7 +88,7 @@ Before installing the environment, install CUDA and Cudnn compatible with the gr
 
 ### Question 2  Dataset format problem
 
-Classification network: *_*_*-GT.tif   Such as 5_10_2-1.tif  means whole brain coordinates X:5 Y:10 Z:2 contain projected images of neurons.
+Classification network: X_Y_Z-GT.tif   Such as 5_10_2-1.tif  means whole brain coordinates X:5 Y:10 Z:2 contain projected images of neurons.
 0_9_3-0.tif means whole brain coordinates X:0 Y:9 Z:3 do not contain projected images of neurons.
 
 Segmentation network: image -   volume-1.tif        label - label-1.tif
