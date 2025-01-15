@@ -18,6 +18,33 @@ from model.dataset import somata
 from model.evaluator import getAUC, getACC, save_results
 import pandas as pd
 
+class EarlyStopping:
+    def __init__(self, patience=20, verbose=False):
+        """
+        Args:
+            patience (int): How long to wait after last time validation score improved.
+                            Default: 20
+            verbose (bool): If True, prints a message for each validation score improvement.
+                            Default: False
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+
+    def __call__(self, current_score):
+        if self.best_score is None:
+            self.best_score = current_score
+        elif current_score <= self.best_score:
+            self.counter += 1
+            if self.verbose:
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = current_score
+            self.counter = 0
 
 def main(flag, input_root, output_root, end_epoch, download):
     """
@@ -74,21 +101,32 @@ def main(flag, input_root, output_root, end_epoch, download):
         criterion = nn.CrossEntropyLoss()
 
     optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+    early_stopping = EarlyStopping(patience=10, verbose=True)
 
     for epoch in range(start_epoch, end_epoch):
         train(model, optimizer, criterion, train_loader, device, task)
         val(model, val_loader, device, val_auc_list, task, dir_path, epoch)
 
-    auc_list = np.array(val_auc_list)
-    index = auc_list.argmax()
-    print('epoch %s is the best model' % (index))
+        current_auc = val_auc_list[-1] if len(val_auc_list) > 0 else 0.0
+        early_stopping(current_auc)
 
-    print('==> Testing model...')
-    restore_model_path = os.path.join(dir_path, 'ckpt_%d_auc_%.5f.pth' % (index, auc_list[index]))
-    model.load_state_dict(torch.load(restore_model_path)['net'])
-    test(model, 'train', train_loader, device, flag, task, output_root=output_root)
-    test(model, 'val', val_loader, device, flag, task, output_root=output_root)
-    test(model, 'test', test_loader, device, flag, task, output_root=output_root)
+        if early_stopping.early_stop:
+            print(f"Early stopping triggered at epoch {epoch}")
+            break
+
+    auc_list = np.array(val_auc_list)
+    if len(auc_list) > 0:
+        index = auc_list.argmax()
+        print('epoch %s is the best model' % (index))
+
+        print('==> Testing model...')
+        restore_model_path = os.path.join(dir_path, 'ckpt_%d_auc_%.5f.pth' % (index, auc_list[index]))
+        model.load_state_dict(torch.load(restore_model_path, map_location=device)['net'])
+        test(model, 'train', train_loader, device, flag, task, output_root=output_root)
+        test(model, 'val', val_loader, device, flag, task, output_root=output_root)
+        test(model, 'test', test_loader, device, flag, task, output_root=output_root)
+    else:
+        print("No validation results to select the best model.")
 
 
 def train(model, optimizer, criterion, train_loader, device, task):
@@ -104,15 +142,17 @@ def train(model, optimizer, criterion, train_loader, device, task):
 
     model.train()
     for batch_idx, (inputs, targets, fileName) in enumerate(train_loader):
+        inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        outputs = model(inputs.to(device))
+        outputs = model.to(device)(inputs.to(device))
 
         if task == 'multi-label, binary-class':
-            targets = targets.to(torch.float32).to(device)
+            targets = targets.to(torch.float32)
             loss = criterion(outputs, targets)
         else:
-            targets = targets.squeeze().long().to(device)
+            targets = targets.squeeze().long()
             loss = criterion(outputs, targets)
+
         loss.backward()
         optimizer.step()
 
@@ -124,7 +164,8 @@ def val(model, val_loader, device, val_auc_list, task, dir_path, epoch):
     file_name = np.array([])
     with torch.no_grad():
         for batch_idx, (inputs, targets, fileName) in enumerate(val_loader):
-            outputs = model(inputs.to(device))
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
 
             if task == 'multi-label, binary-class':
                 targets = targets.to(torch.float32).to(device)
@@ -178,7 +219,8 @@ def test(model, split, data_loader, device, flag, task, output_root=None):
     file_name = np.array([])
     with torch.no_grad():
         for batch_idx, (inputs, targets, fileName) in enumerate(data_loader):
-            outputs = model(inputs.to(device))
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
 
             if task == 'multi-label, binary-class':
                 targets = targets.to(torch.float32).to(device)

@@ -30,7 +30,7 @@ def main(flag, input_root, output_root, download):
     n_channels = 1
     n_classes = 2
     task = 'binary-class'
-    batch_size = 2
+    batch_size = 8
 
     print('==> Preparing data...')
     train_transform = transforms.Compose([
@@ -77,22 +77,12 @@ def test(model, split, data_loader, device, flag, task, output_root=None):
     :param task: task of current dataset, binary-class/multi-class/multi-label, binary-class
     """
 
-    model.eval()
     y_true = torch.tensor([]).to(device)
     y_score = torch.tensor([]).to(device)
     file_name = np.array([])
-    total_time = 0
-    total_images = 0
-
     with torch.no_grad():
         for batch_idx, (inputs, targets, fileName) in enumerate(data_loader):
-            start_time = time.time()
             outputs = model(inputs.to(device))
-            end_time = time.time()
-
-            batch_time = end_time - start_time
-            total_time += batch_time
-            total_images += inputs.size(0)
 
             if task == 'multi-label, binary-class':
                 targets = targets.to(torch.float32).to(device)
@@ -108,25 +98,39 @@ def test(model, split, data_loader, device, flag, task, output_root=None):
             y_score = torch.cat((y_score, outputs), 0)
             file_name = np.append(file_name, fileName)
 
+        # 将数据转换为 NumPy 格式
         y_true = y_true.cpu().numpy()
-        y_score_2 = y_score.cpu().numpy()
-        file_name_pd = pd.DataFrame(file_name)
-        y_score_pd = pd.DataFrame(y_score_2)
-        result = pd.concat([file_name_pd, y_score_pd], axis=1)
+        y_score_np = y_score.cpu().numpy()
+        y_pred = np.argmax(y_score_np, axis=1)  # 获取每张图片的预测类别
 
-        # Save the path to the dataset classification effect during the test
-        result.to_csv(f"../output/{split}-file-name.csv",
-                      index=False)
+        # 计算混淆矩阵元素
+        tp = np.sum((y_pred == 1) & (y_true.flatten() == 1))
+        tn = np.sum((y_pred == 0) & (y_true.flatten() == 0))
+        fp = np.sum((y_pred == 1) & (y_true.flatten() == 0))
+        fn = np.sum((y_pred == 0) & (y_true.flatten() == 1))
+
+        # 计算 Sensitivity 和 Specificity
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
+        # 保存结果到 CSV
+        file_name_pd = pd.DataFrame(file_name, columns=["FileName"])
+        y_score_pd = pd.DataFrame(y_score_np, columns=[f"Score_{i}" for i in range(y_score_np.shape[1])])
+        y_pred_pd = pd.DataFrame(y_pred, columns=['Predicted_Label'])
+        result = pd.concat([file_name_pd, y_score_pd, y_pred_pd], axis=1)
+
+        output_csv_path = f"../output/{split}-results.csv"
+        result.to_csv(output_csv_path, index=False)
+
+        print(f"保存{split}数据集的预测结果到 {output_csv_path}")
+
+        # 计算 AUC 和 ACC
         y_score = y_score.detach().cpu().numpy()
         auc = getAUC(y_true, y_score, task)
         acc = getACC(y_true, y_score, task)
-        print('%s AUC: %.5f ACC: %.5f' % (split, auc, acc))
+        print('%s AUC: %.5f ACC: %.5f Sensitivity: %.5f Specificity: %.5f' % (split, auc, acc, sensitivity, specificity))
 
-        avg_time_per_image = (total_time / total_images) * 1000  # Convert to milliseconds
-        fps = total_images / total_time
-        print(f'{split} Average time per image: {avg_time_per_image:.2f} ms')
-        print(f'{split} FPS: {fps:.2f}')
-
+        # 保存最终结果到特定路径
         if output_root is not None:
             output_dir = os.path.join(output_root, flag)
             if not os.path.exists(output_dir):
