@@ -98,22 +98,18 @@ def test(model, split, data_loader, device, flag, task, output_root=None):
             y_score = torch.cat((y_score, outputs), 0)
             file_name = np.append(file_name, fileName)
 
-        # 将数据转换为 NumPy 格式
         y_true = y_true.cpu().numpy()
         y_score_np = y_score.cpu().numpy()
-        y_pred = np.argmax(y_score_np, axis=1)  # 获取每张图片的预测类别
+        y_pred = np.argmax(y_score_np, axis=1)
 
-        # 计算混淆矩阵元素
         tp = np.sum((y_pred == 1) & (y_true.flatten() == 1))
         tn = np.sum((y_pred == 0) & (y_true.flatten() == 0))
         fp = np.sum((y_pred == 1) & (y_true.flatten() == 0))
         fn = np.sum((y_pred == 0) & (y_true.flatten() == 1))
 
-        # 计算 Sensitivity 和 Specificity
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
-        # 保存结果到 CSV
         file_name_pd = pd.DataFrame(file_name, columns=["FileName"])
         y_score_pd = pd.DataFrame(y_score_np, columns=[f"Score_{i}" for i in range(y_score_np.shape[1])])
         y_pred_pd = pd.DataFrame(y_pred, columns=['Predicted_Label'])
@@ -122,15 +118,13 @@ def test(model, split, data_loader, device, flag, task, output_root=None):
         output_csv_path = f"../output/{split}-results.csv"
         result.to_csv(output_csv_path, index=False)
 
-        print(f"保存{split}数据集的预测结果到 {output_csv_path}")
+        print(f"Save the predictions of the {split} dataset to {output_csv_path}")
 
-        # 计算 AUC 和 ACC
         y_score = y_score.detach().cpu().numpy()
         auc = getAUC(y_true, y_score, task)
         acc = getACC(y_true, y_score, task)
         print('%s AUC: %.5f ACC: %.5f Sensitivity: %.5f Specificity: %.5f' % (split, auc, acc, sensitivity, specificity))
 
-        # 保存最终结果到特定路径
         if output_root is not None:
             output_dir = os.path.join(output_root, flag)
             if not os.path.exists(output_dir):
